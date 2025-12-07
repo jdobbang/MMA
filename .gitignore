@@ -1,0 +1,29 @@
+# Dataset files
+dataset/
+*.zip
+
+# Model weights
+*.pt
+yolo11*.pt
+
+# Miniconda
+miniconda3/
+Miniconda3-*.sh
+
+# Logs and outputs
+log/
+*.log
+nohup.out
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.cache
