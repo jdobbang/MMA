@@ -6,10 +6,6 @@ dataset/
 *.pt
 yolo11*.pt
 
-# Miniconda
-miniconda3/
-Miniconda3-*.sh
-
 # Logs and outputs
 log/
 *.log

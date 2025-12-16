@@ -15,6 +15,7 @@ MMA/
 │   ├── visualize_training.py         # 학습 진행 시각화
 │   ├── inference_base.py             # 검출 추론 (confidence 기반)
 │   ├── inference_base_bytetrack.py   # 추적 추론 (ByteTrack)
+│   ├── detection.py                  # 이미지/비디오 검출 스크립트
 │   └── concat_results.py             # 결과 비교 시각화
 ├── analyzer/             # 분석 도구
 └── model/               # 모델 파일 (gitignore)
@@ -78,6 +79,19 @@ python script/inference_base_bytetrack.py \
 python script/concat_results.py --base-dir log/mma_training
 ```
 
+### 이미지/비디오 검출
+```bash
+python script/detection.py log/mma_training/weights/best.pt \
+  --mode images \
+  --input /path/to/images \
+  --output detection/results.csv
+
+python script/detection.py log/mma_training/weights/best.pt \
+  --mode video \
+  --input /path/to/video.mp4 \
+  --interval 5
+```
+
 ## 환경 설정
 
 ```bash
@@ -101,3 +115,50 @@ pip install ultralytics opencv-python numpy tqdm pandas matplotlib
 - Dataset: Harmony4D
 - Model: YOLOv11x
 - Tracker: ByteTrack
+
+---
+
+## script/detection.py
+
+YOLO 기반 이미지/비디오 선수 검출 스크립트
+
+- **기능:**
+    - 이미지 폴더 또는 비디오 파일에서 선수(클래스 0) 객체 검출
+    - 결과를 CSV 파일로 저장
+    - 이미지/비디오 모두 지원 (mode 선택)
+    - tqdm 진행바 및 오류/재시작 지원
+
+- **입력:**
+    - 모델 파일명 (예: yolo11n.pt, yolo11x.pt)
+    - --mode: 'images' 또는 'video' (기본값: images)
+    - --input: 입력 이미지 폴더 또는 비디오 파일 경로
+    - --output: 결과 CSV 파일 경로 (images 모드)
+    - --interval: 비디오 모드에서 N프레임마다 검출 (기본 1)
+
+- **출력:**
+    - 이미지 모드: [output]에 각 이미지별 검출 결과 CSV 저장
+    - 비디오 모드: [results/모델명/비디오명.csv]로 프레임별 검출 결과 저장
+
+- **실행 예시:**
+
+이미지 폴더 검출:
+```bash
+python script/detection.py log/mma_training_v1_202512052/weights/best.pt \
+  --mode images \
+  --input dataset/yolodataset/images/val \
+  --output detection/test.csv
+```
+
+비디오 파일 검출:
+```bash
+python script/detection.py log/mma_training_v1_202512052/weights/best.pt \
+  --mode video \
+  --input /path/to/video.mp4 \
+  --interval 5
+```
+
+- **출력 CSV 포맷:**
+    - 이미지: image_name, object_id, x1, y1, x2, y2, confidence, width, height
+    - 비디오: frame, object_id, x1, y1, x2, y2, confidence, width, height
+
+---
