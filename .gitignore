@@ -2,6 +2,9 @@
 dataset/
 *.zip
 
+#result files
+tracking_results
+
 # Model weights
 *.pt
 yolo11*.pt

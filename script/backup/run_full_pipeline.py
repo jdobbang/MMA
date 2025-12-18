@@ -54,6 +54,140 @@ class Tracklet:
 # Stage 0: Helper Functions
 # ============================================================================
 
+def parse_image_name(image_name: str) -> Tuple[str, int]:
+    """
+    Parse image name to extract sequence name and frame number.
+
+    Args:
+        image_name: Image filename like '03_grappling2_001_grappling2_cam01_00001.jpg'
+
+    Returns:
+        Tuple of (sequence_name, frame_number)
+        Example: ('03_grappling2_001_grappling2_cam01', 1)
+    """
+    # Remove extension
+    base_name = os.path.splitext(image_name)[0]
+
+    # Split by underscore and extract last part as frame number
+    parts = base_name.rsplit('_', 1)
+    if len(parts) == 2:
+        sequence_name = parts[0]
+        try:
+            frame_number = int(parts[1])
+            return sequence_name, frame_number
+        except ValueError:
+            pass
+
+    # Fallback: return whole name as sequence, frame 0
+    return base_name, 0
+
+
+def load_detections_by_sequence(
+    csv_path: str,
+    images_dir: str = None,
+    conf_threshold: float = 0.1
+) -> Tuple[Dict[str, Dict[int, np.ndarray]], Dict[str, Dict[int, str]]]:
+    """
+    Load detection results from CSV file, grouped by sequence.
+
+    Args:
+        csv_path: Path to detection CSV file with image_name column
+        images_dir: Directory containing images (for large bbox filtering)
+        conf_threshold: Minimum confidence threshold for detections
+
+    Returns:
+        Tuple of:
+        - detections_by_sequence: {sequence_name: {frame_num: detections_array}}
+        - image_name_map: {sequence_name: {frame_num: image_name}}
+    """
+    print(f"Loading detections from {csv_path}...")
+    if conf_threshold > 0.0:
+        print(f"Applying confidence threshold: {conf_threshold}")
+
+    # Get frame dimensions for large bbox filtering (using first image)
+    frame_width, frame_height = None, None
+    max_bbox_area = None
+
+    detections_by_sequence = defaultdict(lambda: defaultdict(list))
+    image_name_map = defaultdict(dict)
+    total_loaded = 0
+    filtered_by_conf = 0
+    filtered_by_large_low_conf = 0
+
+    with open(csv_path, 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            image_name = row['image_name']
+            sequence_name, frame_num = parse_image_name(image_name)
+
+            x1 = float(row['x1'])
+            y1 = float(row['y1'])
+            x2 = float(row['x2'])
+            y2 = float(row['y2'])
+            confidence = float(row['confidence'])
+
+            total_loaded += 1
+
+            # Filter by confidence threshold
+            if confidence < conf_threshold:
+                filtered_by_conf += 1
+                continue
+
+            # Lazy load frame dimensions from first image
+            if images_dir is not None and frame_width is None:
+                first_image_path = os.path.join(images_dir, image_name)
+                if os.path.exists(first_image_path):
+                    img = cv2.imread(first_image_path)
+                    if img is not None:
+                        frame_height, frame_width = img.shape[:2]
+                        frame_area = frame_width * frame_height
+                        max_bbox_area = frame_area * 0.1  # 10% of frame
+                        print(f"Detected frame dimensions: {frame_width}x{frame_height}")
+                        print(f"Large bbox filter: removing detections > {max_bbox_area:.0f} pixels")
+
+            # Filter: Large bbox AND low confidence
+            if max_bbox_area is not None:
+                bbox_area = (x2 - x1) * (y2 - y1)
+                if bbox_area > max_bbox_area and confidence < 0.5:
+                    filtered_by_large_low_conf += 1
+                    continue
+
+            # Store detection
+            detection = [x1, y1, x2, y2, confidence]
+            detections_by_sequence[sequence_name][frame_num].append(detection)
+            image_name_map[sequence_name][frame_num] = image_name
+
+    # Convert lists to numpy arrays
+    for seq_name in detections_by_sequence:
+        for frame_num in detections_by_sequence[seq_name]:
+            detections_by_sequence[seq_name][frame_num] = np.array(
+                detections_by_sequence[seq_name][frame_num]
+            )
+
+    # Convert defaultdicts to regular dicts
+    detections_by_sequence = {k: dict(v) for k, v in detections_by_sequence.items()}
+    image_name_map = {k: dict(v) for k, v in image_name_map.items()}
+
+    # Print statistics
+    total_sequences = len(detections_by_sequence)
+    total_detections = sum(
+        sum(len(dets) for dets in seq.values())
+        for seq in detections_by_sequence.values()
+    )
+    print(f"Loaded {total_detections} detections across {total_sequences} sequences")
+    for seq_name in sorted(detections_by_sequence.keys()):
+        seq_frames = len(detections_by_sequence[seq_name])
+        seq_dets = sum(len(dets) for dets in detections_by_sequence[seq_name].values())
+        print(f"  - {seq_name}: {seq_frames} frames, {seq_dets} detections")
+
+    if filtered_by_conf > 0:
+        print(f"Filtered out {filtered_by_conf} detections below confidence threshold")
+    if filtered_by_large_low_conf > 0:
+        print(f"Filtered out {filtered_by_large_low_conf} large+low-confidence detections")
+
+    return detections_by_sequence, image_name_map
+
+
 def get_frame_dimensions(frames_dir, start_frame=0):
     """
     Get frame dimensions by reading the first available frame image.
@@ -467,7 +601,14 @@ def load_reid_model(device='cuda'):
         raise e
 
 
-def extract_reid_features(tracking_csv: str, frames_dir: str, output_pkl: str, device='cuda', batch_size=32):
+def extract_reid_features(
+    tracking_csv: str,
+    frames_dir: str,
+    output_pkl: str,
+    device='cuda',
+    batch_size=32,
+    image_name_map: Dict[int, str] = None
+):
     """
     Extract Re-ID features for all tracklets.
 
@@ -477,6 +618,8 @@ def extract_reid_features(tracking_csv: str, frames_dir: str, output_pkl: str, d
         output_pkl: Output pickle file path
         device: 'cuda' or 'cpu'
         batch_size: Batch size for feature extraction
+        image_name_map: Optional mapping from frame number to image filename
+                        If provided, uses this to locate images instead of frame_{frame:06d}.jpg
     """
     import torch
     import torchvision.transforms as T
@@ -484,6 +627,8 @@ def extract_reid_features(tracking_csv: str, frames_dir: str, output_pkl: str, d
 
     print(f"\n=== Stage 3a: Re-ID Feature Extraction ===")
     print(f"Parameters: device={device}, batch_size={batch_size}")
+    if image_name_map:
+        print(f"Using image_name_map with {len(image_name_map)} frame mappings")
 
     # Load Re-ID model
     model = load_reid_model(device)
@@ -516,11 +661,15 @@ def extract_reid_features(tracking_csv: str, frames_dir: str, output_pkl: str, d
                 for i, frame in enumerate(tracklet.frames):
                     bbox = tracklet.bboxes[i]
 
-                    # Load frame image
-                    frame_path = os.path.join(frames_dir, f"frame_{frame:06d}.jpg")
-                    if not os.path.exists(frame_path):
-                        # Try alternative naming
-                        frame_path = os.path.join(frames_dir, f"frame_{frame}.jpg")
+                    # Determine frame path
+                    if image_name_map and frame in image_name_map:
+                        # Use image_name_map for sequence-based images
+                        frame_path = os.path.join(frames_dir, image_name_map[frame])
+                    else:
+                        # Fallback to default naming convention
+                        frame_path = os.path.join(frames_dir, f"frame_{frame:06d}.jpg")
+                        if not os.path.exists(frame_path):
+                            frame_path = os.path.join(frames_dir, f"frame_{frame}.jpg")
 
                     if not os.path.exists(frame_path):
                         print(f"Warning: Frame {frame_path} not found, skipping")
@@ -589,6 +738,200 @@ def extract_reid_features(tracking_csv: str, frames_dir: str, output_pkl: str, d
     print(f"Saved: {output_pkl}")
 
     return reid_features
+
+
+def _worker_extract_features(
+    worker_id: int,
+    tracklet_items: List[Tuple[int, 'Tracklet']],
+    frames_dir: str,
+    batch_size: int,
+    result_queue,
+    total_images: int,
+    image_name_map: Dict[int, str] = None
+):
+    """
+    Worker function for parallel Re-ID feature extraction.
+    Each worker loads its own model and processes a subset of tracklets.
+    """
+    import torch
+    import torchvision.transforms as T
+    from PIL import Image
+
+    # Load model for this worker
+    model = load_reid_model('cuda')
+
+    transform = T.Compose([
+        T.Resize((256, 128)),
+        T.ToTensor(),
+        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    reid_features = {}
+    batch_images = []
+    batch_keys = []
+    processed = 0
+
+    with torch.no_grad():
+        for track_id, tracklet in tracklet_items:
+            for i, frame in enumerate(tracklet.frames):
+                bbox = tracklet.bboxes[i]
+
+                # Determine frame path
+                if image_name_map and frame in image_name_map:
+                    frame_path = os.path.join(frames_dir, image_name_map[frame])
+                else:
+                    frame_path = os.path.join(frames_dir, f"frame_{frame:06d}.jpg")
+                    if not os.path.exists(frame_path):
+                        frame_path = os.path.join(frames_dir, f"frame_{frame}.jpg")
+
+                if not os.path.exists(frame_path):
+                    processed += 1
+                    continue
+
+                # Read and crop image
+                img = cv2.imread(frame_path)
+                if img is None:
+                    processed += 1
+                    continue
+
+                x1, y1, x2, y2 = map(int, bbox)
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(img.shape[1], x2), min(img.shape[0], y2)
+
+                if x2 <= x1 or y2 <= y1:
+                    processed += 1
+                    continue
+
+                crop = img[y1:y2, x1:x2]
+                crop_rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+                crop_pil = Image.fromarray(crop_rgb)
+
+                crop_tensor = transform(crop_pil)
+                batch_images.append(crop_tensor)
+                batch_keys.append((frame, track_id))
+
+                # Process batch if full
+                if len(batch_images) >= batch_size:
+                    batch_tensor = torch.stack(batch_images).cuda()
+                    features = model(batch_tensor)
+
+                    for j, key in enumerate(batch_keys):
+                        reid_features[key] = features[j].cpu().numpy()
+
+                    processed += len(batch_images)
+                    batch_images = []
+                    batch_keys = []
+
+        # Process remaining batch
+        if batch_images:
+            batch_tensor = torch.stack(batch_images).cuda()
+            features = model(batch_tensor)
+
+            for j, key in enumerate(batch_keys):
+                reid_features[key] = features[j].cpu().numpy()
+            processed += len(batch_images)
+
+    # Put results in queue
+    result_queue.put((worker_id, reid_features))
+    print(f"Worker {worker_id}: Completed {len(reid_features)} features")
+
+
+def extract_reid_features_parallel(
+    tracking_csv: str,
+    frames_dir: str,
+    output_pkl: str,
+    device='cuda',
+    batch_size=32,
+    num_workers=8,
+    image_name_map: Dict[int, str] = None
+):
+    """
+    Extract Re-ID features using multiple parallel workers.
+
+    Each worker loads its own model instance (~800MiB GPU memory each).
+    With 25GB VRAM, can safely run 8-10 workers in parallel.
+
+    Args:
+        tracking_csv: Path to tracking CSV
+        frames_dir: Directory containing frame images
+        output_pkl: Output pickle file path
+        device: 'cuda' or 'cpu' (parallel mode only supports cuda)
+        batch_size: Batch size per worker
+        num_workers: Number of parallel workers
+        image_name_map: Optional mapping from frame number to image filename
+    """
+    import torch.multiprocessing as mp
+
+    print(f"\n=== Stage 3a: Re-ID Feature Extraction (Parallel) ===")
+    print(f"Parameters: num_workers={num_workers}, batch_size={batch_size}")
+
+    # Fall back to single-threaded if CPU or single worker
+    if device != 'cuda' or num_workers <= 1:
+        print("Falling back to single-threaded extraction...")
+        return extract_reid_features(tracking_csv, frames_dir, output_pkl, device, batch_size, image_name_map)
+
+    # Load tracking data
+    print(f"Loading tracking data from {tracking_csv}...")
+    tracklets = csv_to_tracklets(tracking_csv)
+
+    total_images = sum(len(t) for t in tracklets.values())
+    print(f"Total images to process: {total_images}")
+
+    # Split tracklets among workers
+    tracklet_items = list(tracklets.items())
+    chunk_size = (len(tracklet_items) + num_workers - 1) // num_workers
+
+    chunks = []
+    for i in range(num_workers):
+        start_idx = i * chunk_size
+        end_idx = min(start_idx + chunk_size, len(tracklet_items))
+        if start_idx < len(tracklet_items):
+            chunks.append(tracklet_items[start_idx:end_idx])
+
+    actual_workers = len(chunks)
+    print(f"Splitting {len(tracklet_items)} tracklets across {actual_workers} workers")
+
+    # Set multiprocessing start method
+    try:
+        mp.set_start_method('spawn', force=True)
+    except RuntimeError:
+        pass  # Already set
+
+    # Create result queue and launch workers
+    result_queue = mp.Queue()
+    processes = []
+
+    for i, chunk in enumerate(chunks):
+        chunk_images = sum(len(t) for _, t in chunk)
+        p = mp.Process(
+            target=_worker_extract_features,
+            args=(i, chunk, frames_dir, batch_size, result_queue, chunk_images, image_name_map)
+        )
+        p.start()
+        processes.append(p)
+        print(f"Started worker {i} with {len(chunk)} tracklets ({chunk_images} images)")
+
+    # Collect results
+    all_features = {}
+    for _ in range(actual_workers):
+        worker_id, features = result_queue.get()
+        all_features.update(features)
+        print(f"Received results from worker {worker_id}: {len(features)} features")
+
+    # Wait for all processes to finish
+    for p in processes:
+        p.join()
+
+    # Save features
+    print(f"Saving Re-ID features to {output_pkl}...")
+    os.makedirs(os.path.dirname(output_pkl), exist_ok=True)
+    with open(output_pkl, 'wb') as f:
+        pickle.dump(all_features, f)
+
+    print(f"Extracted {len(all_features)} Re-ID features (parallel)")
+    print(f"Saved: {output_pkl}")
+
+    return all_features
 
 
 # ============================================================================
@@ -848,24 +1191,122 @@ def run_post_merge_interpolation(tracking_csv: str, output_csv: str, max_gap: in
 # Main Pipeline
 # ============================================================================
 
+def run_pipeline_for_sequence(
+    sequence_name: str,
+    detections_by_frame: Dict[int, np.ndarray],
+    images_dir: str,
+    output_dir: str,
+    image_name_map: Dict[int, str],
+    max_age: int = 30,
+    min_hits: int = 3,
+    iou_threshold: float = 0.1,
+    max_gap: int = 30,
+    similarity_threshold: float = 0.7,
+    max_time_gap: int = 150,
+    device: str = 'cuda',
+    batch_size: int = 32,
+    num_reid_workers: int = 8
+) -> Dict[int, Tracklet]:
+    """
+    Run the full tracking pipeline for a single sequence.
+
+    Args:
+        sequence_name: Name of the sequence
+        detections_by_frame: Detection dictionary {frame_num: detections_array}
+        images_dir: Directory containing images
+        output_dir: Output directory for this sequence
+        image_name_map: Mapping from frame number to image filename
+        max_age: SORT max age parameter
+        min_hits: SORT min hits parameter
+        iou_threshold: SORT IoU threshold
+        max_gap: Maximum gap for interpolation
+        similarity_threshold: Re-ID similarity threshold
+        max_time_gap: Re-ID maximum time gap
+        device: Device for Re-ID model
+        batch_size: Batch size for Re-ID extraction
+        num_reid_workers: Number of parallel workers for Re-ID extraction
+
+    Returns:
+        Final tracklets dictionary
+    """
+    print(f"\n{'='*70}")
+    print(f"Processing sequence: {sequence_name}")
+    print(f"{'='*70}")
+
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Define output paths
+    step1_csv = os.path.join(output_dir, "step1_sort_raw.csv")
+    step2_csv = os.path.join(output_dir, "step2_interpolated.csv")
+    step3_csv = os.path.join(output_dir, "step3_reid_merged.csv")
+    step4_csv = os.path.join(output_dir, "step4_post_interpolated.csv")
+    reid_pkl = os.path.join(output_dir, "reid_features.pkl")
+
+    # Stage 1: SORT Tracking
+    tracks_by_frame = run_sort_tracking(
+        detections_by_frame,
+        max_age=max_age,
+        min_hits=min_hits,
+        iou_threshold=iou_threshold
+    )
+
+    save_tracking_to_csv(tracks_by_frame, step1_csv)
+
+    # Stage 2: Interpolation
+    interpolated_tracklets = run_interpolation(
+        step1_csv, step2_csv, max_gap=max_gap
+    )
+
+    # Stage 3: Re-ID Feature Extraction (parallel)
+    try:
+        reid_features = extract_reid_features_parallel(
+            step2_csv, images_dir, reid_pkl,
+            device=device, batch_size=batch_size,
+            num_workers=num_reid_workers,
+            image_name_map=image_name_map
+        )
+
+        # Stage 3b: Re-ID Based Merging
+        merged_tracklets = run_reid_merging(
+            step2_csv, reid_pkl, step3_csv,
+            similarity_threshold=similarity_threshold,
+            max_time_gap=max_time_gap
+        )
+    except (ImportError, ModuleNotFoundError) as e:
+        print("\n" + "="*70)
+        print("WARNING: Re-ID module not available, skipping stage 3")
+        print("="*70)
+        print("\nCopying step2 results to step3 (no Re-ID merging)...")
+        import shutil
+        shutil.copy(step2_csv, step3_csv)
+        merged_tracklets = csv_to_tracklets(step2_csv)
+
+    # Stage 4: Post-Merge Interpolation
+    final_tracklets = run_post_merge_interpolation(
+        step3_csv, step4_csv, max_gap=max_gap
+    )
+
+    # Print summary for this sequence
+    print(f"\n--- Sequence {sequence_name} Summary ---")
+    print(f"Final: {sum(len(t) for t in final_tracklets.values())} tracks, "
+          f"{len(final_tracklets)} unique IDs")
+
+    return final_tracklets
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="4-Stage Soccer Tracking Pipeline: SORT → Interpolation → Re-ID Merging → Post-Interpolation"
+        description="4-Stage Tracking Pipeline: SORT → Interpolation → Re-ID Merging → Post-Interpolation"
     )
 
     # Input/Output
     parser.add_argument("--detections", type=str, required=True,
-                       help="Path to detection CSV file")
-    parser.add_argument("--frames-dir", type=str, required=True,
-                       help="Directory containing frame images")
+                       help="Path to detection CSV file (with image_name column)")
+    parser.add_argument("--images-dir", type=str, required=True,
+                       help="Directory containing images")
     parser.add_argument("--output-dir", type=str, default="tracking_results",
                        help="Output directory for results")
-
-    # Frame range
-    parser.add_argument("--start-frame", type=int, default=None,
-                       help="Start frame (inclusive)")
-    parser.add_argument("--end-frame", type=int, default=None,
-                       help="End frame (inclusive)")
 
     # Stage 1: SORT parameters
     parser.add_argument("--max-age", type=int, default=30,
@@ -873,7 +1314,7 @@ def main():
     parser.add_argument("--min-hits", type=int, default=3,
                        help="SORT min hits (default: 3)")
     parser.add_argument("--iou-threshold", type=float, default=0.1,
-                       help="SORT IoU threshold (default: 0.3)")
+                       help="SORT IoU threshold (default: 0.1)")
     parser.add_argument("--confidence-threshold", type=float, default=0.1,
                        help="Detection confidence threshold (default: 0.1)")
 
@@ -891,107 +1332,69 @@ def main():
                        help="Device for Re-ID model (default: cuda)")
     parser.add_argument("--batch-size", type=int, default=32,
                        help="Batch size for Re-ID extraction (default: 32)")
+    parser.add_argument("--num-reid-workers", type=int, default=8,
+                       help="Number of parallel workers for Re-ID extraction (default: 8)")
 
     args = parser.parse_args()
+
+    print("="*70)
+    print("4-STAGE TRACKING PIPELINE (Images Mode)")
+    print("="*70)
+    print(f"Input detections: {args.detections}")
+    print(f"Images directory: {args.images_dir}")
+    print(f"Output directory: {args.output_dir}")
+    print(f"Re-ID workers: {args.num_reid_workers}")
+    print("="*70)
 
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # Define output paths
-    step1_csv = os.path.join(args.output_dir, "step1_sort_raw.csv")
-    step2_csv = os.path.join(args.output_dir, "step2_interpolated.csv")
-    step3_csv = os.path.join(args.output_dir, "step3_reid_merged.csv")
-    step4_csv = os.path.join(args.output_dir, "step4_post_interpolated.csv")
-    reid_pkl = os.path.join(args.output_dir, "reid_features.pkl")
-
-    print("="*70)
-    print("4-STAGE SOCCER TRACKING PIPELINE")
-    print("="*70)
-    print(f"Input detections: {args.detections}")
-    print(f"Frames directory: {args.frames_dir}")
-    print(f"Output directory: {args.output_dir}")
-    print(f"Frame range: {args.start_frame or 'start'} - {args.end_frame or 'end'}")
-    print("="*70)
-
-    # Stage 1: SORT Tracking
-    detections_by_frame = load_detections_from_csv(
+    # Load detections grouped by sequence
+    detections_by_sequence, image_name_map = load_detections_by_sequence(
         args.detections,
-        frames_dir=args.frames_dir,
-        start_frame=args.start_frame,
-        end_frame=args.end_frame,
+        images_dir=args.images_dir,
         conf_threshold=args.confidence_threshold
     )
 
-    tracks_by_frame = run_sort_tracking(
-        detections_by_frame,
-        max_age=args.max_age,
-        min_hits=args.min_hits,
-        iou_threshold=args.iou_threshold
-    )
+    # Process each sequence
+    all_results = {}
+    for sequence_name in sorted(detections_by_sequence.keys()):
+        detections_by_frame = detections_by_sequence[sequence_name]
+        seq_image_name_map = image_name_map[sequence_name]
+        output_subdir = os.path.join(args.output_dir, sequence_name)
 
-    save_tracking_to_csv(tracks_by_frame, step1_csv)
-
-    # Stage 2: Interpolation
-    interpolated_tracklets = run_interpolation(
-        step1_csv, step2_csv, max_gap=args.max_gap
-    )
-
-    # Stage 3: Re-ID Feature Extraction (optional)
-    try:
-        reid_features = extract_reid_features(
-            step2_csv, args.frames_dir, reid_pkl,
-            device=args.device, batch_size=args.batch_size
-        )
-
-        # Stage 3: Re-ID Based Merging
-        merged_tracklets = run_reid_merging(
-            step2_csv, reid_pkl, step3_csv,
+        final_tracklets = run_pipeline_for_sequence(
+            sequence_name=sequence_name,
+            detections_by_frame=detections_by_frame,
+            images_dir=args.images_dir,
+            output_dir=output_subdir,
+            image_name_map=seq_image_name_map,
+            max_age=args.max_age,
+            min_hits=args.min_hits,
+            iou_threshold=args.iou_threshold,
+            max_gap=args.max_gap,
             similarity_threshold=args.similarity_threshold,
-            max_time_gap=args.max_time_gap
+            max_time_gap=args.max_time_gap,
+            device=args.device,
+            batch_size=args.batch_size,
+            num_reid_workers=args.num_reid_workers
         )
-    except (ImportError, ModuleNotFoundError) as e:
-        print("\n" + "="*70)
-        print("WARNING: Re-ID module not available, skipping stage 3")
-        print("To enable Re-ID, install: pip install numpy && pip install git+https://github.com/KaiyangZhou/deep-person-reid.git")
-        print("="*70)
-        print("\nCopying step2 results to step3 (no Re-ID merging)...")
-        import shutil
-        shutil.copy(step2_csv, step3_csv)
-        merged_tracklets = csv_to_tracklets(step2_csv)
-
-    # Stage 4: Post-Merge Interpolation
-    final_tracklets = run_post_merge_interpolation(
-        step3_csv, step4_csv, max_gap=args.max_gap
-    )
+        all_results[sequence_name] = final_tracklets
 
     # Final summary
     print("\n" + "="*70)
-    print("PIPELINE COMPLETE!")
+    print("ALL SEQUENCES COMPLETE!")
     print("="*70)
-    print(f"Stage 1 (SORT):              {step1_csv}")
-    print(f"Stage 2 (Interpolate):       {step2_csv}")
-    print(f"Stage 3 (Re-ID Merge):       {step3_csv}")
-    print(f"Stage 4 (Post-Interpolate):  {step4_csv}")
-    print(f"Re-ID Features:              {reid_pkl}")
+    total_tracks = 0
+    total_ids = 0
+    for seq_name, tracklets in all_results.items():
+        seq_tracks = sum(len(t) for t in tracklets.values())
+        seq_ids = len(tracklets)
+        total_tracks += seq_tracks
+        total_ids += seq_ids
+        print(f"  {seq_name}: {seq_tracks} tracks, {seq_ids} IDs")
+    print(f"\nTotal: {total_tracks} tracks, {total_ids} unique IDs across {len(all_results)} sequences")
     print("="*70)
-
-    # Statistics
-    step1_tracklets = csv_to_tracklets(step1_csv)
-    step2_tracklets = csv_to_tracklets(step2_csv)
-    step3_tracklets = csv_to_tracklets(step3_csv)
-
-    print("\n=== Statistics ===")
-    print(f"Step 1: {sum(len(t) for t in step1_tracklets.values())} tracks, "
-          f"{len(step1_tracklets)} unique IDs")
-    print(f"Step 2: {sum(len(t) for t in step2_tracklets.values())} tracks, "
-          f"{len(step2_tracklets)} unique IDs")
-    print(f"Step 3: {sum(len(t) for t in step3_tracklets.values())} tracks, "
-          f"{len(step3_tracklets)} unique IDs")
-    print(f"Step 4: {sum(len(t) for t in final_tracklets.values())} tracks, "
-          f"{len(final_tracklets)} unique IDs")
-
-    print("\nTo visualize results:")
-    print(f"python visualize_tracking.py {step4_csv} --frames-dir {args.frames_dir}")
 
 
 if __name__ == "__main__":
