@@ -319,13 +319,26 @@ def transform_all_sequences(
     print(f"Found {len(sequences)} sequences: {sequences}")
 
     # 각 시퀀스 처리
+
     for seq_name in sorted(sequences):
         print(f"\n--- Processing: {seq_name} ---")
+
+        # 시퀀스명에 따라 프리셋 자동 선택
+        seq_lower = seq_name.lower()
+        if "grappling" in seq_lower:
+            seq_preset = "grappling"
+        elif "mma" in seq_lower:
+            seq_preset = "mma"
+        else:
+            seq_preset = preset_name  # fallback
+            print(f"  [경고] 시퀀스명에서 프리셋을 추론할 수 없어 기본값({preset_name}) 사용")
+
+        print(f"  [Info] Preset for this sequence: {seq_preset}")
 
         input_csv = os.path.join(tracking_dir, seq_name, csv_filename)
         output_csv = os.path.join(tracking_dir, seq_name, "real_coordinates.csv")
 
-        transform_tracking_results(input_csv, output_csv, preset_name, fps)
+        transform_tracking_results(input_csv, output_csv, seq_preset, fps)
 
     print(f"\n{'='*70}")
     print("All sequences transformed!")
@@ -372,26 +385,27 @@ Available presets:
     parser.add_argument("--csv-file", type=str, default="step2_interpolated.csv",
                         help="입력 CSV 파일명 (배치 모드)")
 
-    # 공통
-    parser.add_argument("--preset", type=str, required=True,
+    # 공통 (단일 모드에서만 필수, 배치 모드에서는 선택적)
+    parser.add_argument("--preset", type=str,
                         choices=list(STAGE_PRESETS.keys()),
-                        help="경기장 프리셋")
+                        help="경기장 프리셋 (단일 모드 필수, 배치 모드에서는 폴더명 자동 추론, 미지정시 fallback)")
     parser.add_argument("--fps", type=float, default=30.0,
                         help="프레임 레이트 (default: 30)")
 
     args = parser.parse_args()
 
     if args.batch:
+        # 배치 모드: preset은 fallback 용으로만 사용
         transform_all_sequences(
             args.tracking_dir,
-            args.preset,
+            args.preset if args.preset else "mma",
             args.csv_file,
             args.fps
         )
     else:
-        if not args.tracking_csv or not args.output:
+        if not args.tracking_csv or not args.output or not args.preset:
             parser.print_help()
-            print("\nError: --tracking-csv and --output required for single mode")
+            print("\nError: --tracking-csv, --output, --preset 모두 단일 모드에서 필요합니다.")
             return
 
         transform_tracking_results(
