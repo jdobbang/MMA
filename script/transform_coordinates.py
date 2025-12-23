@@ -38,13 +38,13 @@ STAGE_PRESETS = {
         "pixel_corners": {
             "top_left": (1600, 900),
             "top_right": (3120, 1000),
-            "bottom_left": (510, 3120),
+            "bottom_left": (510, 1310),
             "bottom_right": (3270, 2150),
         }
     },
     "mma": {
         "description": "MMA 경기장 (4개 시퀀스 공통)",
-        "real_size": (3.5, 3.0),  # 가로 3.5m, 세로 3.0m
+        "real_size": (3.0, 3.0),  # 가로 3.5m, 세로 3.0m
         "pixel_corners": {
             "top_left": (1210, 1100),
             "top_right": (2710, 1120),
@@ -380,7 +380,7 @@ Available presets:
                         help="출력 CSV (단일 모드)")
 
     # 배치 모드
-    parser.add_argument("--tracking-dir", type=str, default="mma_tracking_results",
+    parser.add_argument("--tracking-dir", type=str, default="tracking_results",
                         help="추적 결과 디렉토리 (배치 모드)")
     parser.add_argument("--csv-file", type=str, default="step2_interpolated.csv",
                         help="입력 CSV 파일명 (배치 모드)")

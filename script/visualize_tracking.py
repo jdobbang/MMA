@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
 Visualize tracking results by drawing bounding boxes with track IDs on frames.
+Optionally includes pose estimation skeleton visualization.
 Reads tracking results from CSV and frames from disk, outputs visualized frames.
 
 Usage:
-    # 단일 시퀀스
+    # 단일 시퀀스 (tracking만)
     python visualize_tracking.py tracking.csv --frames-dir images --output-dir vis
 
-    # 전체 시퀀스 배치 처리
+    # 전체 시퀀스 배치 처리 (tracking만)
     python visualize_tracking.py --batch --tracking-dir mma_tracking_results --frames-dir images
+
+    # pose 시각화 포함
+    python visualize_tracking.py --batch --tracking-dir tracking_results --frames-dir images --pose
 """
 
 
@@ -34,7 +38,110 @@ def generate_color(track_id):
         return tuple(np.random.randint(0, 255, 3).tolist())
 
 
-def visualize_tracking(tracking_csv, frames_dir, output_dir):
+# ===== Pose Visualization 관련 상수 및 함수 =====
+
+# COCO Keypoint 정의 (17 keypoints)
+KEYPOINT_NAMES = [
+    'nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear',
+    'left_shoulder', 'right_shoulder', 'left_elbow', 'right_elbow',
+    'left_wrist', 'right_wrist', 'left_hip', 'right_hip',
+    'left_knee', 'right_knee', 'left_ankle', 'right_ankle'
+]
+
+# COCO Skeleton 연결 정의 (keypoint index pairs)
+SKELETON_CONNECTIONS = [
+    # 얼굴
+    (0, 1), (0, 2), (1, 3), (2, 4),  # nose - eyes - ears
+    # 상체
+    (5, 6),   # 어깨 연결
+    (5, 7), (7, 9),    # 왼팔: 어깨 - 팔꿈치 - 손목
+    (6, 8), (8, 10),   # 오른팔: 어깨 - 팔꿈치 - 손목
+    # 몸통
+    (5, 11), (6, 12),  # 어깨 - 엉덩이
+    (11, 12),          # 엉덩이 연결
+    # 하체
+    (11, 13), (13, 15),  # 왼다리: 엉덩이 - 무릎 - 발목
+    (12, 14), (14, 16),  # 오른다리: 엉덩이 - 무릎 - 발목
+]
+
+
+def load_pose_csv(csv_path: str) -> dict:
+    """
+    pose estimation CSV 로드하여 frame별로 그룹화
+
+    Returns:
+        dict: {frame_num: [{track_id, keypoints}, ...]}
+    """
+    frame_data = defaultdict(list)
+
+    with open(csv_path, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+
+        for row in reader:
+            frame = int(row['frame'])
+            track_id = int(row['track_id'])
+
+            # keypoints 정보
+            keypoints = {}
+            for kp_name in KEYPOINT_NAMES:
+                x = float(row[f'{kp_name}_x'])
+                y = float(row[f'{kp_name}_y'])
+                conf = float(row[f'{kp_name}_conf'])
+                keypoints[kp_name] = (x, y, conf)
+
+            frame_data[frame].append({
+                'track_id': track_id,
+                'keypoints': keypoints
+            })
+
+    return frame_data
+
+
+def draw_skeleton(image, keypoints, track_id, conf_threshold=0.3, line_thickness=2, point_radius=4):
+    """
+    이미지에 skeleton 그리기
+
+    Args:
+        image: 원본 이미지
+        keypoints: {keypoint_name: (x, y, conf)}
+        track_id: 플레이어 ID
+        conf_threshold: 시각화할 최소 confidence
+        line_thickness: 선 두께
+        point_radius: 점 반지름
+    """
+    point_color = generate_color(track_id)
+    # 선 색상은 좀 더 밝게
+    line_color = tuple(min(255, int(c * 1.3)) for c in point_color)
+
+    # keypoints를 index로 변환
+    kp_coords = []
+    for name in KEYPOINT_NAMES:
+        if name in keypoints:
+            x, y, conf = keypoints[name]
+            if conf >= conf_threshold and x > 0 and y > 0:
+                kp_coords.append((int(x), int(y), conf))
+            else:
+                kp_coords.append(None)
+        else:
+            kp_coords.append(None)
+
+    # Skeleton 연결선 그리기
+    for (idx1, idx2) in SKELETON_CONNECTIONS:
+        if kp_coords[idx1] is not None and kp_coords[idx2] is not None:
+            pt1 = (kp_coords[idx1][0], kp_coords[idx1][1])
+            pt2 = (kp_coords[idx2][0], kp_coords[idx2][1])
+            cv2.line(image, pt1, pt2, line_color, line_thickness)
+
+    # Keypoint 점 그리기
+    for kp in kp_coords:
+        if kp is not None:
+            x, y, conf = kp
+            radius = int(point_radius * (0.5 + conf * 0.5))
+            cv2.circle(image, (x, y), radius, point_color, -1)
+            cv2.circle(image, (x, y), radius, (255, 255, 255), 1)  # 테두리
+
+
+def visualize_tracking(tracking_csv, frames_dir, output_dir, pose_csv=None, pose_conf_threshold=0.3):
     """
     Visualize tracking results on frames.
 
@@ -42,6 +149,8 @@ def visualize_tracking(tracking_csv, frames_dir, output_dir):
         tracking_csv: Path to tracking results CSV file
         frames_dir: Directory containing frame images
         output_dir: Directory to save visualized frames
+        pose_csv: Path to pose estimation CSV file (optional)
+        pose_conf_threshold: Keypoint confidence threshold for pose visualization
     """
     # Read tracking results grouped by frame/image_name
     print(f"Reading tracking results from {tracking_csv}...")
@@ -74,6 +183,13 @@ def visualize_tracking(tracking_csv, frames_dir, output_dir):
     if not tracks_by_frame:
         print("No tracking data found!")
         return
+
+    # Load pose data if provided
+    pose_by_frame = {}
+    if pose_csv and os.path.exists(pose_csv):
+        print(f"Loading pose data from {pose_csv}...")
+        pose_by_frame = load_pose_csv(pose_csv)
+        print(f"Loaded pose data for {len(pose_by_frame)} frames")
 
     # Determine min/max frame number
     frame_numbers = sorted(tracks_by_frame.keys())
@@ -148,6 +264,16 @@ def visualize_tracking(tracking_csv, frames_dir, output_dir):
             cv2.putText(frame, label, (x1 + 2, y1 - 5),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
+        # Draw pose skeleton if available
+        if frame_num in pose_by_frame:
+            for pose_data in pose_by_frame[frame_num]:
+                draw_skeleton(
+                    frame,
+                    pose_data['keypoints'],
+                    pose_data['track_id'],
+                    conf_threshold=pose_conf_threshold
+                )
+
         # Save visualized frame
         output_path = os.path.join(output_dir, output_filename)
         cv2.imwrite(output_path, frame)
@@ -155,7 +281,9 @@ def visualize_tracking(tracking_csv, frames_dir, output_dir):
     print(f"Saved {len(frame_numbers)} frames to {output_dir}")
 
 
-def visualize_all_sequences(tracking_dir, frames_dir, csv_filename="step2_interpolated.csv"):
+def visualize_all_sequences(tracking_dir, frames_dir, csv_filename="step2_interpolated.csv",
+                            with_pose=False, pose_csv_filename="pose_estimation.csv",
+                            pose_conf_threshold=0.3, output_subdir="visualization"):
     """
     모든 시퀀스에 대해 시각화 수행
 
@@ -163,6 +291,10 @@ def visualize_all_sequences(tracking_dir, frames_dir, csv_filename="step2_interp
         tracking_dir: 추적 결과 디렉토리 (예: mma_tracking_results)
         frames_dir: 이미지 디렉토리
         csv_filename: 사용할 CSV 파일명 (default: step2_interpolated.csv)
+        with_pose: pose 시각화 포함 여부
+        pose_csv_filename: pose CSV 파일명 (default: pose_estimation.csv)
+        pose_conf_threshold: keypoint confidence threshold
+        output_subdir: 출력 폴더명 (default: visualization)
     """
     print(f"="*70)
     print(f"Batch Visualization")
@@ -170,6 +302,10 @@ def visualize_all_sequences(tracking_dir, frames_dir, csv_filename="step2_interp
     print(f"Tracking dir: {tracking_dir}")
     print(f"Frames dir: {frames_dir}")
     print(f"CSV file: {csv_filename}")
+    if with_pose:
+        print(f"Pose CSV: {pose_csv_filename}")
+        print(f"Pose conf threshold: {pose_conf_threshold}")
+    print(f"Output subdir: {output_subdir}")
     print(f"="*70)
 
     # 시퀀스 폴더 찾기
@@ -191,9 +327,18 @@ def visualize_all_sequences(tracking_dir, frames_dir, csv_filename="step2_interp
         print(f"\n--- Processing: {seq_name} ---")
 
         csv_path = os.path.join(tracking_dir, seq_name, csv_filename)
-        output_dir = os.path.join(tracking_dir, seq_name, "visualization")
+        output_dir = os.path.join(tracking_dir, seq_name, output_subdir)
 
-        visualize_tracking(csv_path, frames_dir, output_dir)
+        # pose CSV 경로
+        pose_csv = None
+        if with_pose:
+            pose_csv = os.path.join(tracking_dir, seq_name, pose_csv_filename)
+            if not os.path.exists(pose_csv):
+                print(f"Warning: Pose CSV not found: {pose_csv}")
+                pose_csv = None
+
+        visualize_tracking(csv_path, frames_dir, output_dir,
+                          pose_csv=pose_csv, pose_conf_threshold=pose_conf_threshold)
 
     print(f"\n{'='*70}")
     print(f"All sequences visualized!")
@@ -210,10 +355,13 @@ Examples:
   python visualize_tracking.py tracking.csv --frames-dir images --output-dir vis
 
   # 전체 시퀀스 배치 처리
-  python visualize_tracking.py --batch --tracking-dir mma_tracking_results --frames-dir images
+  python visualize_tracking.py --batch --tracking-dir tracking_results --frames-dir images
 
-  # step1 결과로 시각화
-  python visualize_tracking.py --batch --tracking-dir mma_tracking_results --frames-dir images --csv-file step1_tracking.csv
+  # pose 시각화 포함 (배치)
+  python visualize_tracking.py --batch --tracking-dir tracking_results --frames-dir images --pose
+
+  # pose 시각화 포함 (단일)
+  python visualize_tracking.py tracking.csv --frames-dir images --pose --pose-csv pose_estimation.csv
         """
     )
 
@@ -241,14 +389,45 @@ Examples:
     parser.add_argument(
         "--tracking-dir",
         type=str,
-        default="mma_tracking_results",
-        help="추적 결과 디렉토리 (배치 모드, default: mma_tracking_results)"
+        default="tracking_results",
+        help="추적 결과 디렉토리 (배치 모드, default: tracking_results)"
     )
     parser.add_argument(
         "--csv-file",
         type=str,
         default="step2_interpolated.csv",
         help="사용할 CSV 파일명 (배치 모드, default: step2_interpolated.csv)"
+    )
+    parser.add_argument(
+        "--output-subdir",
+        type=str,
+        default="visualization",
+        help="출력 폴더명 (배치 모드, default: visualization)"
+    )
+
+    # Pose 옵션
+    parser.add_argument(
+        "--pose",
+        action="store_true",
+        help="pose estimation 시각화 포함"
+    )
+    parser.add_argument(
+        "--pose-csv",
+        type=str,
+        default=None,
+        help="pose estimation CSV 경로 (단일 모드)"
+    )
+    parser.add_argument(
+        "--pose-csv-file",
+        type=str,
+        default="pose_estimation.csv",
+        help="pose CSV 파일명 (배치 모드, default: pose_estimation.csv)"
+    )
+    parser.add_argument(
+        "--pose-conf",
+        type=float,
+        default=0.3,
+        help="keypoint confidence threshold (default: 0.3)"
     )
 
     # 공통
@@ -270,7 +449,18 @@ Examples:
             print(f"Error: Frames directory not found: {args.frames_dir}")
             return
 
-        visualize_all_sequences(args.tracking_dir, args.frames_dir, args.csv_file)
+        # pose 옵션에 따라 출력 폴더명 변경
+        output_subdir = args.output_subdir
+        if args.pose and output_subdir == "visualization":
+            output_subdir = "pose_visualization"
+
+        visualize_all_sequences(
+            args.tracking_dir, args.frames_dir, args.csv_file,
+            with_pose=args.pose,
+            pose_csv_filename=args.pose_csv_file,
+            pose_conf_threshold=args.pose_conf,
+            output_subdir=output_subdir
+        )
 
     # 단일 모드
     else:
@@ -287,8 +477,22 @@ Examples:
             print(f"Error: Frames directory not found: {args.frames_dir}")
             return
 
-        output_dir = args.output_dir or "visualization"
-        visualize_tracking(args.tracking_csv, args.frames_dir, output_dir)
+        output_dir = args.output_dir or ("pose_visualization" if args.pose else "visualization")
+
+        # pose CSV 경로 결정
+        pose_csv = None
+        if args.pose:
+            if args.pose_csv:
+                pose_csv = args.pose_csv
+            else:
+                # tracking_csv와 같은 폴더에서 찾기
+                pose_csv = os.path.join(os.path.dirname(args.tracking_csv), "pose_estimation.csv")
+            if not os.path.exists(pose_csv):
+                print(f"Warning: Pose CSV not found: {pose_csv}")
+                pose_csv = None
+
+        visualize_tracking(args.tracking_csv, args.frames_dir, output_dir,
+                          pose_csv=pose_csv, pose_conf_threshold=args.pose_conf)
 
 
 if __name__ == "__main__":

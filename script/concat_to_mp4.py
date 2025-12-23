@@ -171,13 +171,13 @@ def main():
         epilog="""
 Examples:
   # 전체 시퀀스 배치 처리
-  python concat_to_mp4.py --tracking-dir mma_tracking_results
+  python script/concat_to_mp4.py --tracking-dir tracking_results
 
   # 단일 폴더 처리
-  python concat_to_mp4.py --input-dir results/visualization/concat --output output.mp4
+  python script/concat_to_mp4.py --input-dir results/visualization/concat --output output.mp4
 
   # 프레임 레이트 지정
-  python concat_to_mp4.py --tracking-dir mma_tracking_results --fps 25
+  python script/concat_to_mp4.py --tracking-dir tracking_results --fps 25
         """
     )
 

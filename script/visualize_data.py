@@ -664,7 +664,7 @@ Available presets:
                         help="출력 디렉토리")
 
     # 배치 모드
-    parser.add_argument("--tracking-dir", type=str, default="mma_tracking_results",
+    parser.add_argument("--tracking-dir", type=str, default="tracking_results",
                         help="추적 결과 디렉토리 (배치 모드)")
     parser.add_argument("--csv-file", type=str, default="real_coordinates.csv",
                         help="입력 CSV 파일명 (배치 모드)")

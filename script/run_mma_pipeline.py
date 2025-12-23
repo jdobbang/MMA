@@ -324,7 +324,7 @@ def main():
                         help="검출 CSV 파일 경로")
     parser.add_argument("--images-dir", type=str, required=True,
                         help="이미지 디렉토리")
-    parser.add_argument("--output-dir", type=str, default="mma_tracking_results",
+    parser.add_argument("--output-dir", type=str, default="tracking_results",
                         help="출력 디렉토리")
 
     # 추적 파라미터

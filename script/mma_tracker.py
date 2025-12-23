@@ -287,17 +287,17 @@ class MMATemplateTracker:
             iou_value: 두 bbox 간 IoU
 
         Returns:
-            {'iou': weight, 'reid': weight}
+            {'iou': weight, 'reid_initial': weight, 'reid_adaptive': weight}
         """
         if iou_value == 0:
             # 떨어져 있음: 위치만으로 판단
-            return {'iou': 1.0, 'reid': 0.0}
-        elif iou_value < 0.3:
+            return {'iou': 0.0, 'reid_initial': 1.0, 'reid_adaptive': 0.0}
+        elif iou_value < 0.5:
             # 약간 겹침: 균형
-            return {'iou': 0.4, 'reid': 0.6}
+            return {'iou': 0.0, 'reid_initial': 1.0, 'reid_adaptive': 0.0}
         else:
             # 많이 겹침: Re-ID 중심 (클린치/그라운드)
-            return {'iou': 0.2, 'reid': 0.8}
+            return {'iou': 0.5, 'reid_initial': 0.5, 'reid_adaptive': 0.0}
 
     def compute_cost_matrix(
         self,
@@ -332,18 +332,17 @@ class MMATemplateTracker:
                 # IoU 계산 (예측 위치 vs 검출)
                 iou = compute_iou(pred_bbox, det_bbox)
 
-                # Re-ID 유사도 (초기 + 적응형 중 최대값)
+                
+                # 동적 가중치 적용                
+                weights = self.compute_dynamic_weights(iou)
+                
                 # - initial: ID 복구용 (스왑 후에도 원래 ID 찾기)
                 # - adaptive: 연속 추적용 (조명/자세 변화 대응)
                 initial_sim = cosine_similarity(template.initial_reid_feature, det_features[j])
                 adaptive_sim = cosine_similarity(template.adaptive_reid_feature, det_features[j])
-                reid_sim = max(initial_sim, adaptive_sim)
-
-                # 동적 가중치 적용
-                weights = self.compute_dynamic_weights(iou)
 
                 # 하이브리드 스코어
-                score = weights['iou'] * iou + weights['reid'] * reid_sim
+                score =iou * weights['iou'] + initial_sim * weights['reid_initial'] + adaptive_sim * weights['reid_adaptive']  
 
                 cost[i, j] = -score  # Hungarian은 최소화
 
