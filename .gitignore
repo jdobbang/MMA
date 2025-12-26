@@ -10,7 +10,8 @@ tracking_results
 yolo11*.pt
 
 # Logs and outputs
-log/
+detection_log/
+pose_log/
 *.log
 nohup.out
 
