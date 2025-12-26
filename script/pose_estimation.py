@@ -54,7 +54,7 @@ def load_tracking_csv(csv_path: str) -> dict:
     return frame_data
 
 
-def crop_person(image: np.ndarray, bbox: dict, padding: float = 0.1) -> tuple:
+def crop_person(image: np.ndarray, bbox: dict, padding: float = 0.0) -> tuple:
     """
     bbox 기준으로 사람 영역 crop (padding 포함)
 
@@ -247,7 +247,7 @@ def process_all_sequences(
     model: YOLO,
     csv_filename: str = "step2_interpolated.csv",
     output_filename: str = "pose_estimation.csv",
-    padding: float = 0.1,
+    padding: float = 0.0,
     keypoint_conf_threshold: float = 0.3
 ):
     """
@@ -349,10 +349,10 @@ Examples:
     # 공통 옵션
     parser.add_argument('--image_folder', type=str, required=True,
                         help='Path to image folder')
-    parser.add_argument('--model', type=str, default='yolo11m-pose.pt',
-                        help='YOLO pose model (default: yolo11m-pose.pt)')
-    parser.add_argument('--padding', type=float, default=0.1,
-                        help='Bbox padding ratio (default: 0.1)')
+    parser.add_argument('--model', type=str, default='yolo11x-pose.pt',
+                        help='YOLO pose model (default: yolo11x-pose.pt)')
+    parser.add_argument('--padding', type=float, default=0.0,
+                        help='Bbox padding ratio (default: 0.0)')
     parser.add_argument('--keypoint_conf', type=float, default=0.3,
                         help='Keypoint confidence threshold (default: 0.3)')
     parser.add_argument('--device', type=str, default='cuda',
