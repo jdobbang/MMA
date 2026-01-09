@@ -7,11 +7,13 @@ tracking_results
 
 # Model weights
 *.pt
-yolo11*.pt
+checkpoints/
+model/
 
 # Logs and outputs
 detection_log/
 pose_log/
+smpl_rendering_results/
 *.log
 nohup.out
 
@@ -27,3 +29,9 @@ __pycache__/
 dist/
 build/
 .cache
+
+#etc
+*.png
+
+#libaries
+mmcv/

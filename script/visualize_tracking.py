@@ -420,8 +420,8 @@ Examples:
     parser.add_argument(
         "--pose-csv-file",
         type=str,
-        default="pose_estimation.csv",
-        help="pose CSV 파일명 (배치 모드, default: pose_estimation.csv)"
+        default="pose_estimation_finetuned.csv",
+        help="pose CSV 파일명 (배치 모드, default: pose_estimation_finetuned.csv)"
     )
     parser.add_argument(
         "--pose-conf",

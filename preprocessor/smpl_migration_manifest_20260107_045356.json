@@ -1,0 +1,329 @@
+{
+  "timestamp": "2026-01-07T04:53:56.784408",
+  "mode": "execute",
+  "total_directories": 35,
+  "total_size_bytes": 1192212719,
+  "total_files": 7093,
+  "migrations": [
+    {
+      "source": "/workspace/dataset/03_grappling2/001_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/001_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/001_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "001_grappling2",
+      "file_count": 157,
+      "size_bytes": 26389031
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/003_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/003_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/003_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "003_grappling2",
+      "file_count": 416,
+      "size_bytes": 69922528
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/004_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/004_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/004_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "004_grappling2",
+      "file_count": 181,
+      "size_bytes": 30423023
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/005_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/005_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/005_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "005_grappling2",
+      "file_count": 467,
+      "size_bytes": 78494761
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/008_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/008_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/008_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "008_grappling2",
+      "file_count": 274,
+      "size_bytes": 46054742
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/009_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/009_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/009_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "009_grappling2",
+      "file_count": 229,
+      "size_bytes": 38491007
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/010_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/010_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/010_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "010_grappling2",
+      "file_count": 96,
+      "size_bytes": 16135968
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/012_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/012_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/012_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "012_grappling2",
+      "file_count": 170,
+      "size_bytes": 28574110
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/013_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/013_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/013_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "013_grappling2",
+      "file_count": 534,
+      "size_bytes": 89756322
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/014_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/014_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/014_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "014_grappling2",
+      "file_count": 53,
+      "size_bytes": 8908399
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/015_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/015_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/015_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "015_grappling2",
+      "file_count": 85,
+      "size_bytes": 14287055
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/016_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/016_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/016_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "016_grappling2",
+      "file_count": 84,
+      "size_bytes": 14118972
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/017_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/017_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/017_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "017_grappling2",
+      "file_count": 120,
+      "size_bytes": 20169960
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/020_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/020_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/020_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "020_grappling2",
+      "file_count": 178,
+      "size_bytes": 29918774
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/021_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/021_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/021_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "021_grappling2",
+      "file_count": 256,
+      "size_bytes": 43029248
+    },
+    {
+      "source": "/workspace/dataset/03_grappling2/024_grappling2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/03_grappling2/024_grappling2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/03_grappling2/024_grappling2/processed_data",
+      "dataset": "03_grappling2",
+      "session": "024_grappling2",
+      "file_count": 140,
+      "size_bytes": 23531620
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/001_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/001_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/001_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "001_mma2",
+      "file_count": 573,
+      "size_bytes": 96311559
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/002_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/002_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/002_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "002_mma2",
+      "file_count": 210,
+      "size_bytes": 35297430
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/003_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/003_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/003_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "003_mma2",
+      "file_count": 197,
+      "size_bytes": 33112351
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/005_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/005_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/005_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "005_mma2",
+      "file_count": 289,
+      "size_bytes": 48575987
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/006_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/006_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/006_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "006_mma2",
+      "file_count": 251,
+      "size_bytes": 42188833
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/007_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/007_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/007_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "007_mma2",
+      "file_count": 187,
+      "size_bytes": 31431521
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/011_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/011_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/011_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "011_mma2",
+      "file_count": 34,
+      "size_bytes": 5714822
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/014_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/014_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/014_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "014_mma2",
+      "file_count": 167,
+      "size_bytes": 28069861
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/016_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/016_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/016_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "016_mma2",
+      "file_count": 91,
+      "size_bytes": 15295553
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/018_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/018_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/018_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "018_mma2",
+      "file_count": 78,
+      "size_bytes": 13110474
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/020_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/020_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/020_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "020_mma2",
+      "file_count": 88,
+      "size_bytes": 14791304
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/021_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/021_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/021_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "021_mma2",
+      "file_count": 234,
+      "size_bytes": 39331422
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/024_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/024_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/024_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "024_mma2",
+      "file_count": 51,
+      "size_bytes": 8572233
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/025_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/025_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/025_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "025_mma2",
+      "file_count": 234,
+      "size_bytes": 39331422
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/026_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/026_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/026_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "026_mma2",
+      "file_count": 152,
+      "size_bytes": 25548616
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/029_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/029_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/029_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "029_mma2",
+      "file_count": 91,
+      "size_bytes": 15295553
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/030_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/030_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/030_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "030_mma2",
+      "file_count": 67,
+      "size_bytes": 11261561
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/032_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/032_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/032_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "032_mma2",
+      "file_count": 364,
+      "size_bytes": 61182212
+    },
+    {
+      "source": "/workspace/dataset/13_mma2/033_mma2/processed_data/smpl",
+      "target": "/workspace/MMA/dataset/13_mma2/033_mma2/processed_data/smpl",
+      "target_parent": "/workspace/MMA/dataset/13_mma2/033_mma2/processed_data",
+      "dataset": "13_mma2",
+      "session": "033_mma2",
+      "file_count": 295,
+      "size_bytes": 49584485
+    }
+  ],
+  "summary": {
+    "successful": 0,
+    "failed": 0,
+    "dry_run": false
+  }
+}

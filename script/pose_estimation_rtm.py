@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-Pose Estimation for MMA Tracking Results
-=========================================
+RTMPose-based 2D Pose Estimation for MMA Tracking Results
+==========================================================
 
 Tracking 결과(step2_interpolated.csv)를 기반으로
 single person에 대한 2D pose estimation을 수행하고 CSV로 저장
 
-사용 모델: YOLO11-pose (Ultralytics)
+사용 모델: RTMPose-m (MMPose)
+호환성: 기존 YOLO11-pose와 동일한 입출력 형식 유지
 """
-
 import argparse
 import os
 import csv
 import cv2
 import numpy as np
-from ultralytics import YOLO
 from tqdm import tqdm
 from collections import defaultdict
+from typing import Dict, Tuple, Optional
 
 
 # COCO Keypoint 정의 (17 keypoints)
@@ -26,6 +26,33 @@ KEYPOINT_NAMES = [
     'left_wrist', 'right_wrist', 'left_hip', 'right_hip',
     'left_knee', 'right_knee', 'left_ankle', 'right_ankle'
 ]
+
+
+def init_rtmpose_model(config_path: str, checkpoint_path: str, device: str = 'cuda'):
+    """
+    RTMPose 모델 초기화
+
+    Args:
+        config_path: RTMPose 설정 파일 경로
+        checkpoint_path: RTMPose 체크포인트 파일 경로
+        device: 'cuda' 또는 'cpu'
+
+    Returns:
+        MMPose model instance
+    """
+    try:
+        from mmpose.apis import init_model
+    except ImportError:
+        raise ImportError(
+            "MMPose not installed. Please run:\n"
+            "pip install mmpose mmcv mmengine mmdet"
+        )
+
+    print(f"Loading RTMPose model from: {checkpoint_path}")
+    model = init_model(config_path, checkpoint_path, device=device)
+    print(f"Model loaded successfully on device: {device}")
+
+    return model
 
 
 def load_tracking_csv(csv_path: str) -> dict:
@@ -94,99 +121,89 @@ def crop_person(image: np.ndarray, bbox: dict, padding: float = 0.0) -> tuple:
     return cropped, crop_info
 
 
-def run_pose_on_crop(model: YOLO, cropped_image: np.ndarray, original_bbox: dict, crop_info: dict, conf_threshold: float = 0.3) -> dict:
+def run_pose_on_crop_rtm(
+    model,
+    cropped_image: np.ndarray,
+    original_bbox: dict,
+    crop_info: dict,
+    conf_threshold: float = 0.3
+) -> dict:
     """
-    crop된 이미지에서 pose estimation 수행
-    원본 bbox와 가장 일치하는 detection을 선택
+    crop된 이미지에서 RTMPose inference 수행
 
     Args:
-        model: YOLO pose model
+        model: RTMPose model
         cropped_image: crop된 이미지
         original_bbox: 원본 이미지의 bbox (x1, y1, x2, y2)
         crop_info: crop 정보 (offset_x, offset_y)
         conf_threshold: keypoint confidence threshold
 
     Returns:
-        dict: {keypoint_name: (x, y, conf)} - crop 좌표계
+        dict: {keypoint_name: (x, y, conf)} - 원본 이미지 좌표계
     """
     if cropped_image.size == 0:
         return {}
 
-    results = model.predict(cropped_image, conf=0.1, verbose=False)
+    try:
+        from mmpose.apis import inference_topdown
+        from mmpose.structures import merge_data_samples
+    except ImportError:
+        raise ImportError("MMPose not installed")
 
-    if len(results) == 0 or results[0].keypoints is None:
+    try:
+        # RTMPose inference
+        results = inference_topdown(model, cropped_image)
+
+        if results is None or len(results) == 0:
+            return {}
+
+        # 첫 번째 결과에서 keypoint 추출
+        result = results[0]
+
+        # pred_instances에서 keypoints와 keypoint_scores 추출
+        if not hasattr(result, 'pred_instances'):
+            return {}
+
+        pred_instances = result.pred_instances
+
+        if not hasattr(pred_instances, 'keypoints') or len(pred_instances.keypoints) == 0:
+            return {}
+
+        # keypoints: (1, 17, 2), keypoint_scores: (1, 17)
+        kpts_xy = pred_instances.keypoints[0]  # (17, 2)
+        kpts_conf = pred_instances.keypoint_scores[0] if hasattr(pred_instances, 'keypoint_scores') else np.ones(17)
+
+        # 원본 이미지 좌표로 변환
+        keypoints = {}
+        for i, name in enumerate(KEYPOINT_NAMES):
+            x = float(kpts_xy[i, 0]) + crop_info['offset_x']
+            y = float(kpts_xy[i, 1]) + crop_info['offset_y']
+            conf = float(kpts_conf[i]) if isinstance(kpts_conf, np.ndarray) else float(kpts_conf)
+            keypoints[name] = (x, y, conf)
+
+        return keypoints
+
+    except Exception as e:
+        print(f"Error during pose inference: {e}")
         return {}
-
-    keypoints_data = results[0].keypoints
-
-    if keypoints_data.xy is None or len(keypoints_data.xy) == 0:
-        return {}
-
-    # crop 좌표계에서 원본 bbox로 변환
-    orig_x1 = original_bbox['x1'] - crop_info['offset_x']
-    orig_y1 = original_bbox['y1'] - crop_info['offset_y']
-    orig_x2 = original_bbox['x2'] - crop_info['offset_x']
-    orig_y2 = original_bbox['y2'] - crop_info['offset_y']
-
-    orig_bbox_center_x = (orig_x1 + orig_x2) / 2
-    orig_bbox_center_y = (orig_y1 + orig_y2) / 2
-
-    # 가장 가까운 detection 찾기
-    best_idx = 0
-    best_distance = float('inf')
-
-    if hasattr(results[0], 'boxes') and results[0].boxes is not None:
-        boxes = results[0].boxes
-        for idx in range(len(boxes)):
-            box = boxes[idx].xyxy[0].cpu().numpy()
-            box_center_x = (box[0] + box[2]) / 2
-            box_center_y = (box[1] + box[3]) / 2
-            distance = np.sqrt((box_center_x - orig_bbox_center_x)**2 +
-                             (box_center_y - orig_bbox_center_y)**2)
-            if distance < best_distance:
-                best_distance = distance
-                best_idx = idx
-
-    kpts_xy = keypoints_data.xy[best_idx].cpu().numpy()  # (17, 2)
-    kpts_conf = keypoints_data.conf[best_idx].cpu().numpy() if keypoints_data.conf is not None else np.ones(17)
-
-    keypoints = {}
-    for i, name in enumerate(KEYPOINT_NAMES):
-        x, y = kpts_xy[i]
-        conf = float(kpts_conf[i])
-        keypoints[name] = (float(x), float(y), conf)
-
-    return keypoints
-
-
-def transform_keypoints_to_original(keypoints: dict, crop_info: dict) -> dict:
-    """
-    crop 좌표계 -> 원본 이미지 좌표계로 변환
-    """
-    transformed = {}
-    for name, (x, y, conf) in keypoints.items():
-        orig_x = x + crop_info['offset_x']
-        orig_y = y + crop_info['offset_y']
-        transformed[name] = (orig_x, orig_y, conf)
-    return transformed
 
 
 def process_sequence(
     tracking_csv: str,
     image_folder: str,
     output_csv: str,
-    model: YOLO,
+    model,
     padding: float = 0.1,
     keypoint_conf_threshold: float = 0.3
 ):
     """
-    시퀀스 전체에 대해 pose estimation 수행
+    시퀀스 전체에 대해 RTMPose 기반 pose estimation 수행
 
     Args:
         tracking_csv: step2_interpolated.csv 경로
         image_folder: 이미지 폴더 경로
         output_csv: 출력 CSV 경로
-        model: YOLO pose model
+        model: RTMPose model
         padding: bbox crop padding 비율
         keypoint_conf_threshold: keypoint confidence threshold
     """
@@ -215,7 +232,7 @@ def process_sequence(
         # 프레임별 처리
         sorted_frames = sorted(frame_data.keys())
 
-        for frame_num in tqdm(sorted_frames, desc="Processing frames"):
+        for frame_num in tqdm(sorted_frames, desc="Processing frames (RTMPose)"):
             detections = frame_data[frame_num]
 
             # 첫 번째 detection에서 이미지 이름 추출
@@ -238,12 +255,8 @@ def process_sequence(
                 # bbox crop
                 cropped, crop_info = crop_person(image, det, padding=padding)
 
-                # pose estimation (원본 bbox 정보를 함께 전달)
-                keypoints = run_pose_on_crop(model, cropped, original_bbox=det, crop_info=crop_info, conf_threshold=keypoint_conf_threshold)
-
-                # 원본 좌표계로 변환
-                if keypoints:
-                    keypoints = transform_keypoints_to_original(keypoints, crop_info)
+                # RTMPose inference (원본 bbox 정보 전달하지 않음 - 이미 좌표 변환됨)
+                keypoints = run_pose_on_crop_rtm(model, cropped, original_bbox=det, crop_info=crop_info, conf_threshold=keypoint_conf_threshold)
 
                 # CSV row 생성
                 row = [
@@ -270,26 +283,26 @@ def process_sequence(
 def process_all_sequences(
     tracking_dir: str,
     image_folder: str,
-    model: YOLO,
+    model,
     csv_filename: str = "step2_interpolated.csv",
-    output_filename: str = "pose_estimation.csv",
+    output_filename: str = "pose_estimation_rtm_finetuned.csv",
     padding: float = 0.0,
     keypoint_conf_threshold: float = 0.3
 ):
     """
-    모든 시퀀스에 대해 pose estimation 배치 처리
+    모든 시퀀스에 대해 RTMPose 기반 pose estimation 배치 처리
 
     Args:
         tracking_dir: tracking_results 디렉토리 경로
         image_folder: 이미지 폴더 경로
-        model: YOLO pose model
-        csv_filename: 입력 CSV 파일명 (default: step2_interpolated.csv)
-        output_filename: 출력 CSV 파일명 (default: pose_estimation.csv)
+        model: RTMPose model
+        csv_filename: 입력 CSV 파일명
+        output_filename: 출력 CSV 파일명
         padding: bbox padding 비율
         keypoint_conf_threshold: keypoint confidence threshold
     """
     print("=" * 70)
-    print("Batch Pose Estimation")
+    print("Batch Pose Estimation (RTMPose)")
     print("=" * 70)
     print(f"Tracking dir: {tracking_dir}")
     print(f"Image folder: {image_folder}")
@@ -336,23 +349,31 @@ def process_all_sequences(
 
 def main():
     parser = argparse.ArgumentParser(
-        description='2D Pose Estimation for MMA Tracking Results',
+        description='RTMPose-based 2D Pose Estimation for MMA Tracking Results',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # 단일 시퀀스 처리
-  python pose_estimation.py --tracking_csv tracking_results/seq1/step2_interpolated.csv \\
-                            --image_folder dataset/images/val/
+  # 단일 시퀀스 처리 (RTMPose 사전학습 모델)
+  python pose_estimation_rtm.py \\
+    --tracking_csv tracking_results/seq1/step2_interpolated.csv \\
+    --image_folder dataset/images/val/ \\
+    --config configs/rtmpose_configs/rtmpose_m_coco.py \\
+    --checkpoint checkpoints/rtmpose-m_simcc-coco_pt-aic-coco_420e-256x192.pth
 
-  # 전체 시퀀스 배치 처리
-  python pose_estimation.py --batch \\
-                            --tracking_dir tracking_results \\
-                            --image_folder dataset/images/val/
+  # 전체 시퀀스 배치 처리 (fine-tuned RTMPose)
+  python pose_estimation_rtm.py --batch \\
+    --tracking_dir tracking_results \\
+    --image_folder dataset/images/val/ \\
+    --config configs/rtmpose_configs/rtmpose_m_coco.py \\
+    --checkpoint pose_log/mma_rtm_v1/best_coco.pth
 
-  # 특정 모델 사용
-  python pose_estimation.py --batch --tracking_dir tracking_results \\
-                            --image_folder dataset/images/val/ \\
-                            --model yolo11l-pose.pt
+  # CPU 사용 (느림)
+  python pose_estimation_rtm.py --batch \\
+    --tracking_dir tracking_results \\
+    --image_folder dataset/images/val/ \\
+    --config configs/rtmpose_configs/rtmpose_m_coco.py \\
+    --checkpoint checkpoints/rtmpose-m_simcc-coco_pt-aic-coco_420e-256x192.pth \\
+    --device cpu
         """
     )
 
@@ -362,33 +383,38 @@ Examples:
     parser.add_argument('--tracking_dir', type=str, default='tracking_results',
                         help='Tracking 결과 디렉토리 (배치 모드)')
     parser.add_argument('--input_csv', type=str, default='step2_interpolated.csv',
-                        help='입력 CSV 파일명 (배치 모드, default: step2_interpolated.csv)')
-    parser.add_argument('--output_name', type=str, default='pose_estimation.csv',
-                        help='출력 CSV 파일명 (배치 모드, default: pose_estimation.csv)')
+                        help='입력 CSV 파일명 (배치 모드)')
+    parser.add_argument('--output_name', type=str, default='pose_estimation_rtm.csv',
+                        help='출력 CSV 파일명 (배치 모드)')
 
     # 단일 모드
     parser.add_argument('--tracking_csv', type=str, default=None,
                         help='Path to step2_interpolated.csv (단일 모드)')
     parser.add_argument('--output_csv', type=str, default=None,
-                        help='Output CSV path (단일 모드, default: same folder as tracking_csv)')
+                        help='Output CSV path (단일 모드)')
 
     # 공통 옵션
     parser.add_argument('--image_folder', type=str, required=True,
                         help='Path to image folder')
-    parser.add_argument('--model', type=str, default='yolo11x-pose.pt',
-                        help='YOLO pose model (default: yolo11x-pose.pt)')
+
+    # RTMPose 모델
+    parser.add_argument('--config', type=str, required=True,
+                        help='RTMPose config file path')
+    parser.add_argument('--checkpoint', type=str, required=True,
+                        help='RTMPose checkpoint file path')
+    parser.add_argument('--device', type=str, default='cuda',
+                        help='Device to use (cuda/cpu)')
+
+    # 처리 옵션
     parser.add_argument('--padding', type=float, default=0.0,
                         help='Bbox padding ratio (default: 0.0)')
     parser.add_argument('--keypoint_conf', type=float, default=0.3,
                         help='Keypoint confidence threshold (default: 0.3)')
-    parser.add_argument('--device', type=str, default='cuda',
-                        help='Device to use (cuda/cpu)')
 
     args = parser.parse_args()
 
     # 모델 로드
-    print(f"Loading pose model: {args.model}")
-    model = YOLO(args.model)
+    model = init_rtmpose_model(args.config, args.checkpoint, device=args.device)
 
     if args.batch:
         # 배치 모드
@@ -408,7 +434,7 @@ Examples:
 
         if args.output_csv is None:
             output_dir = os.path.dirname(args.tracking_csv)
-            args.output_csv = os.path.join(output_dir, 'pose_estimation.csv')
+            args.output_csv = os.path.join(output_dir, 'pose_estimation_rtm.csv')
 
         process_sequence(
             tracking_csv=args.tracking_csv,

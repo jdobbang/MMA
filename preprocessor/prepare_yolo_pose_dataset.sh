@@ -13,7 +13,7 @@ echo "=========================================="
 
 # Configuration
 DATASET_DIR="/workspace/MMA/dataset"
-OUTPUT_DIR="/workspace/dataset/yolo_pose_dataset"
+OUTPUT_DIR="/workspace/MMA/dataset/yolo_pose_dataset"
 CAMERA="cam01"
 TRAIN_RATIO=0.8
 

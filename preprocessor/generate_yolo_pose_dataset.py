@@ -49,13 +49,13 @@ POSES2D_TO_COCO_MAPPING = {
 }
 
 
-def load_poses2d(poses2d_file, camera='aria01'):
+def load_poses2d(poses2d_file, camera=None):
     """
     Load poses2d data from .npy file
 
     Args:
         poses2d_file: path to .npy file
-        camera: camera name (default: aria01)
+        camera: camera name (default: None = load all cameras)
 
     Returns:
         dict: {player_id: keypoints_array (45, 2)} or None if file not exists
@@ -65,12 +65,19 @@ def load_poses2d(poses2d_file, camera='aria01'):
 
     try:
         data = np.load(poses2d_file, allow_pickle=True).item()
-        if camera not in data:
-            return None
 
-        # Single player: keypoints shape (45, 2)
-        keypoints = data[camera]
-        return {0: keypoints}  # player_id=0
+        if camera is not None:
+            # Single camera
+            if camera not in data:
+                return None
+            keypoints = data[camera]
+            return {0: keypoints}
+        else:
+            # All cameras - map to player IDs
+            result = {}
+            for player_id, cam_name in enumerate(sorted(data.keys())):
+                result[player_id] = data[cam_name]
+            return result
     except:
         return None
 
@@ -224,7 +231,7 @@ def process_sequence(sequence_dir, camera='cam01', bbox_padding=0.1, use_bbox_fr
 
     Args:
         sequence_dir: path to sequence directory
-        camera: camera name (default: cam01)
+        camera: camera name (default: cam01) - used for images and bbox directories only
         bbox_padding: padding ratio for bbox calculation from keypoints
         use_bbox_from_file: use bbox from bbox/ folder if True, otherwise calculate from keypoints
     """
@@ -242,7 +249,7 @@ def process_sequence(sequence_dir, camera='cam01', bbox_padding=0.1, use_bbox_fr
         print(f"Skipping {sequence_dir}: missing exo or poses2d directory")
         return
 
-    # Camera-specific paths
+    # Camera-specific paths for images and output
     img_dir = os.path.join(exo_dir, camera, 'images')
     poses2d_cam_dir = os.path.join(poses2d_dir, camera)
     bbox_cam_dir = os.path.join(bbox_dir, camera) if use_bbox_from_file else None
@@ -285,8 +292,8 @@ def process_sequence(sequence_dir, camera='cam01', bbox_padding=0.1, use_bbox_fr
 
         img_height, img_width = image.shape[:2]
 
-        # Load poses2d data (single player)
-        poses2d_data = load_poses2d(pose_file, camera='aria01')
+        # Load poses2d data (all players/cameras)
+        poses2d_data = load_poses2d(pose_file)
         if poses2d_data is None:
             skipped_count += 1
             continue
