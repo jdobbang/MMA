@@ -77,7 +77,6 @@ Thumbs.db
 # Media Files (High-bandwidth content)
 # ============================================================================
 *.png
-*.jpg
 *.jpeg
 *.gif
 *.mp4
