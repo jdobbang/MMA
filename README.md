@@ -27,7 +27,7 @@ MMA/
 
 ### 1. 데이터 전처리
 - Harmony4D 데이터셋에서 YOLO 형식 어노테이션 생성
-- Player 검출 + Crowd 검출 (Dice coefficient 기반 필터링)
+- **Player vs Crowd 구분**: Pseudo 라벨을 생성하여 자동으로 선수와 관중 분류
 - 80/20 Train/Val 분할
 
 ### 2. 모델 학습
@@ -38,8 +38,12 @@ MMA/
 
 ### 3. 추론 및 추적
 - **Confidence 기반 검출**: Low/Mid/High 3단계 색상 구분
-- **ByteTrack 추적**: 프레임 간 ID 일관성 유지
+- **Re-ID 기반 추적**: Initial 프레임에서 Re-ID 특징을 등록하여 프레임 간 일관된 ID 유지
 - 최대 2명 선수 추적 지원
+
+### 4. 데이터 시각화
+- **실제 좌표 시각화**: 임의로 지정한 좌표계를 실제 카메라 좌표로 변환하여 3D 공간에서 선수 위치 시각화
+- 추적 결과와 카메라 캘리브레이션을 활용한 정확한 위치 파악
 
 ## 사용법
 
@@ -115,8 +119,8 @@ pip install ultralytics opencv-python numpy tqdm pandas matplotlib
 ## 참고
 
 - Dataset: Harmony4D
-- Model: YOLOv11x
-- Tracker: ByteTrack
+- Model: YOLOv11x (2-class: Player, Crowd)
+- Tracking: Re-ID 기반 추적 (Initial 프레임 Re-ID 등록)
 
 ---
 
