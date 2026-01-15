@@ -2,6 +2,8 @@
 
 YOLO 기반 MMA 선수 검출 및 ByteTrack 추적 시스템
 
+![MMA Detection Sample](asset/13_mma2_001_mma2_cam01_00263.jpg)
+
 ## 프로젝트 구조
 
 ```
