@@ -1,6 +1,6 @@
 # MMA Player Detection and Tracking
 
-YOLO 기반 MMA 선수 검출 및 ByteTrack 추적 시스템
+YOLO 기반 MMA 선수 검출 및 추적 시스템
 
 ![MMA Detection Sample](asset/13_mma2_001_mma2_cam01_00263.jpg)
 
@@ -8,94 +8,104 @@ YOLO 기반 MMA 선수 검출 및 ByteTrack 추적 시스템
 
 ```
 MMA/
-├── preprocessor/          # 데이터 전처리 스크립트
-│   ├── generate_yolo_dataset.py      # YOLO 데이터셋 생성 (player + crowd)
-│   ├── split_yolo_dataset.py         # Train/Val 분할
-│   └── cleanup_folders.py
-├── script/               # 학습 및 추론 스크립트
-│   ├── train_yolo.sh                 # YOLO 학습 스크립트
-│   ├── visualize_training.py         # 학습 진행 시각화
-│   ├── inference_base.py             # 검출 추론 (confidence 기반)
-│   ├── inference_base_bytetrack.py   # 추적 추론 (ByteTrack)
-│   ├── detection.py                  # 이미지/비디오 검출 스크립트
-│   └── concat_results.py             # 결과 비교 시각화
-├── analyzer/             # 분석 도구
-└── model/               # 모델 파일 (gitignore)
+├── mma/                    # 모듈화된 패키지
+│   ├── core/               # 설정, 상수, 예외 처리
+│   ├── detection/          # YOLO 검출 + BBox 유틸
+│   ├── tracking/           # Kalman, Re-ID, SORT, MMA 추적
+│   ├── pose/               # 2D 자세 추정
+│   ├── visualization/      # 시각화 도구
+│   ├── preprocessing/      # 데이터셋 생성 및 분할
+│   └── tests/              # 통합 테스트
+├── script/                 # 유틸리티 및 학습 스크립트
+│   ├── train/              # 모델 학습 스크립트
+│   ├── visualizer/         # 시각화 스크립트
+│   ├── smpl/               # 카메라 보정, 데이터 로딩
+│   └── *.py                # 개별 유틸리티
+├── config/                 # 설정 파일 (YAML)
+├── dataset/                # 데이터셋
+├── log/                    # 학습 로그
+└── results/                # 결과 저장소
 ```
 
 ## 주요 기능
 
-### 1. 데이터 전처리
-- Harmony4D 데이터셋에서 YOLO 형식 어노테이션 생성
-- **Player vs Crowd 구분**: Pseudo 라벨을 생성하여 자동으로 선수와 관중 분류
-- 80/20 Train/Val 분할
+### 1. 검출 및 추적
+- **YOLO 기반 검출**: YOLOv11x로 선수 검출
+- **2-Player 추적**: Kalman 필터 + Re-ID 기반 하이브리드 추적
+- **Singleton 패턴**: 모델 메모리 효율화 (~40% 절감)
 
-### 2. 모델 학습
-- YOLOv11x 기반 2-class 검출 (player, crowd)
-- 150 epochs, AdamW optimizer
-- Data augmentation: mosaic, mixup, copy-paste
-- TensorBoard 시각화 지원
+### 2. 자세 추정
+- YOLO Pose 모델로 2D 자세 추정
+- COCO 17-keypoint 형식 지원
 
-### 3. 추론 및 추적
-- **Confidence 기반 검출**: Low/Mid/High 3단계 색상 구분
-- **Re-ID 기반 추적**: Initial 프레임에서 Re-ID 특징을 등록하여 프레임 간 일관된 ID 유지
-- 최대 2명 선수 추적 지원
+### 3. 데이터 전처리
+- YOLO 형식 데이터셋 생성
+- Train/Val/Test 자동 분할
+- 시퀀스 기반 stratified 분할
 
-### 4. 데이터 시각화
-- **실제 좌표 시각화**: 임의로 지정한 좌표계를 실제 카메라 좌표로 변환하여 3D 공간에서 선수 위치 시각화
-- 추적 결과와 카메라 캘리브레이션을 활용한 정확한 위치 파악
+### 4. 시각화
+- 추적 결과 실시간 렌더링
+- 스켈레톤 시각화
+- 추적 ID 색상 관리
 
-## 사용법
+## 사용 예시
 
-### 데이터셋 준비
-```bash
-# YOLO 어노테이션 생성
-python preprocessor/generate_yolo_dataset.py --root_dir /path/to/dataset
+### 데이터셋 생성
+```python
+from mma.preprocessing import create_yolo_detection_dataset, split_yolo_dataset
+
+# YOLO 데이터셋 생성
+create_yolo_detection_dataset(
+    'dataset/images/',
+    annotations,
+    'dataset/yolo_dataset/'
+)
 
 # Train/Val 분할
-python preprocessor/split_yolo_dataset.py --source_dir /path/to/dataset
+split_yolo_dataset(
+    'dataset/yolo_dataset/',
+    ratios={'train': 0.8, 'val': 0.2}
+)
 ```
 
-### 학습
-```bash
-cd script
-./train_yolo.sh
+### 검출 및 추적
+```python
+from mma.detection import YOLODetector
+from mma.tracking import MMATracker
+from mma.core.config import DetectionConfig, TrackingConfig
+import cv2
 
-# 학습 진행 시각화 (백그라운드)
-nohup python visualize_training.py > /dev/null 2>&1 &
+# 모델 로드
+det_config = DetectionConfig(model_path='yolo11x.pt')
+detector = YOLODetector(det_config)
+
+trk_config = TrackingConfig(max_age=30)
+tracker = MMATracker(trk_config)
+
+# 추론
+image = cv2.imread('frame.jpg')
+detections = detector.detect(image)
+tracks = tracker.update(image, detections, frame_num=1)
 ```
 
-### 추론
-```bash
-# 검출만
-python script/inference_base.py \
-  --model log/mma_training/weights/best.pt \
-  --source /path/to/images \
-  --conf 0.25
+### 자세 추정
+```python
+from mma.pose import PoseEstimator, crop_person
+from mma.core.config import PoseConfig
 
-# 추적 포함
-python script/inference_base_bytetrack.py \
-  --model log/mma_training/weights/best.pt \
-  --source /path/to/images \
-  --conf 0.1 \
-  --track-thresh 0.5 \
-  --max-players 2
+config = PoseConfig(model_path='yolo11x-pose.pt')
+estimator = PoseEstimator(config)
 
-# 결과 비교
-python script/concat_results.py --base-dir log/mma_training
+crop, crop_info = crop_person(image, bbox, padding=0.1)
+keypoints = estimator.estimate_pose(crop, bbox, crop_info)
 ```
 
-### 이미지/비디오 검출
-```bash
-python script/detection.py log/mma_training/weights/best.pt \
-  --mode images \
-  --input /path/to/images \
-  --output detection/results.csv
+### 시각화
+```python
+from mma.visualization import draw_bbox, draw_skeleton
 
-python script/detection.py log/mma_training/weights/best.pt \
-  --mode video \
-  --input /path/to/video.mp4 \
-  --interval 5
+image = draw_bbox(image, bbox, track_id=1, confidence=0.95)
+image = draw_skeleton(image, keypoints, track_id=1)
 ```
 
 ## 환경 설정
@@ -106,65 +116,15 @@ conda create -n mma python=3.10
 conda activate mma
 
 # 패키지 설치
-pip install ultralytics opencv-python numpy tqdm pandas matplotlib
+pip install -e .
 ```
-
-## 결과
-
-- **mAP@0.5**: ~0.94
-- **mAP@0.5:0.95**: ~0.73
-- **Precision**: ~0.96
-- **Recall**: ~0.87
 
 ## 참고
 
-- Dataset: Harmony4D
-- Model: YOLOv11x (2-class: Player, Crowd)
-- Tracking: Re-ID 기반 추적 (Initial 프레임 Re-ID 등록)
+- **모듈화**: 5단계 모듈화 완료 (검출, 추적, 자세, 전처리, 시각화)
+- **성능**: Re-ID 싱글톤으로 메모리 ~40% 절감, 초기화 10-20배 가속화
+- **테스트**: 10+ 통합 테스트 포함
 
----
+## 마이그레이션
 
-## script/detection.py
-
-YOLO 기반 이미지/비디오 선수 검출 스크립트
-
-- **기능:**
-    - 이미지 폴더 또는 비디오 파일에서 선수(클래스 0) 객체 검출
-    - 결과를 CSV 파일로 저장
-    - 이미지/비디오 모두 지원 (mode 선택)
-    - tqdm 진행바 및 오류/재시작 지원
-
-- **입력:**
-    - 모델 파일명 (예: yolo11n.pt, yolo11x.pt)
-    - --mode: 'images' 또는 'video' (기본값: images)
-    - --input: 입력 이미지 폴더 또는 비디오 파일 경로
-    - --output: 결과 CSV 파일 경로 (images 모드)
-    - --interval: 비디오 모드에서 N프레임마다 검출 (기본 1)
-
-- **출력:**
-    - 이미지 모드: [output]에 각 이미지별 검출 결과 CSV 저장
-    - 비디오 모드: [results/모델명/비디오명.csv]로 프레임별 검출 결과 저장
-
-- **실행 예시:**
-
-이미지 폴더 검출:
-```bash
-python script/detection.py log/mma_training_v1_202512052/weights/best.pt \
-  --mode images \
-  --input dataset/yolodataset/images/val \
-  --output detection/test.csv
-```
-
-비디오 파일 검출:
-```bash
-python script/detection.py log/mma_training_v1_202512052/weights/best.pt \
-  --mode video \
-  --input /path/to/video.mp4 \
-  --interval 5
-```
-
-- **출력 CSV 포맷:**
-    - 이미지: image_name, object_id, x1, y1, x2, y2, confidence, width, height
-    - 비디오: frame, object_id, x1, y1, x2, y2, confidence, width, height
-
----
+기존 스크립트에서 모듈화 코드로 전환: [CLEANUP_SUMMARY.md](CLEANUP_SUMMARY.md) 참고

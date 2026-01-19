@@ -1,0 +1,37 @@
+# MMA Pipeline Requirements
+# Core dependencies for running MMA pipeline
+
+# Computer Vision
+opencv-python>=4.5.0
+numpy>=1.21.0
+pillow>=8.0.0
+scipy>=1.7.0
+scikit-image>=0.18.0
+
+# Deep Learning Framework
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Object Detection & Pose Estimation
+ultralytics>=8.0.0
+
+# Re-identification
+torchreid>=1.3.0
+
+# Signal Processing & Filtering
+filterpy>=1.4.5
+
+# Data Processing
+pandas>=1.3.0
+pyyaml>=5.4.0
+
+# Visualization & Progress
+tqdm>=4.60.0
+matplotlib>=3.4.0
+
+# 3D Graphics & SMPL
+trimesh>=3.9.0
+pyrender>=0.1.45
+
+# Utilities
+python-dateutil>=2.8.0

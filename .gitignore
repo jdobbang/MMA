@@ -34,6 +34,7 @@ detection_log/
 pose_log/
 smpl_rendering_results/
 runs/
+log/
 
 # ============================================================================
 # Logs & Temporary Files
@@ -74,16 +75,16 @@ build/
 Thumbs.db
 
 # ============================================================================
-# Media Files (High-bandwidth content)
+# Media Files (Large image/video files - except asset examples)
 # ============================================================================
-*.png
-*.jpeg
-*.gif
 *.mp4
 *.avi
 *.mov
 *.mkv
 *.webm
+*.gif
+# Allow sample images in asset folder
+!asset/
 
 # ============================================================================
 # Environment & Configuration
@@ -110,3 +111,4 @@ miniconda3/
 *.pickle
 miniconda3-latest-linux-x86_64.sh
 =2.0.0/
+Soccer/

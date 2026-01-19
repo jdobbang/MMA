@@ -1,0 +1,27 @@
+# MMA Tracking Configuration (Experimental Overrides)
+# This file can be used to override default tracking parameters for experiments
+
+tracking:
+  # Standard tracking parameters
+  max_age: 30
+  max_gap: 30
+  min_score_threshold: 0.3
+  reid_ema_alpha: 0.1
+  reid_model_name: "osnet_x1_0"
+  reid_resize: [256, 128]
+  device: "cuda"
+  max_players: 2
+
+# Uncomment below for aggressive tracking (longer memory)
+# tracking:
+#   max_age: 50
+#   max_gap: 50
+#   min_score_threshold: 0.2
+#   reid_ema_alpha: 0.15
+
+# Uncomment below for conservative tracking (shorter memory)
+# tracking:
+#   max_age: 15
+#   max_gap: 15
+#   min_score_threshold: 0.5
+#   reid_ema_alpha: 0.05

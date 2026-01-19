@@ -1,0 +1,84 @@
+# MMA Pipeline Default Configuration
+# This is the primary configuration file for all MMA pipeline components
+# Environment variables can override these values
+
+# ===== Detection Configuration =====
+detection:
+  # YOLO model path
+  model_path: "yolo11x.pt"
+
+  # Confidence threshold for detections
+  conf_threshold: 0.1
+
+  # Object classes to detect (0 = person only)
+  classes: [0]
+
+  # Computing device
+  device: "cuda"
+
+  # Batch size for inference
+  batch_size: 16
+
+  # Input image size
+  imgsz: 640
+
+# ===== Tracking Configuration =====
+tracking:
+  # Maximum frames to keep tracking without detection
+  max_age: 30
+
+  # Maximum gap for interpolation
+  max_gap: 30
+
+  # Minimum matching score threshold
+  min_score_threshold: 0.3
+
+  # Re-ID feature exponential moving average alpha
+  reid_ema_alpha: 0.1
+
+  # Re-ID model name (from torchreid)
+  reid_model_name: "osnet_x1_0"
+
+  # Re-ID input size [height, width]
+  reid_resize: [256, 128]
+
+  # Computing device
+  device: "cuda"
+
+  # Maximum number of players to track (MMA specific)
+  max_players: 2
+
+# ===== Pose Estimation Configuration =====
+pose:
+  # Pose model path
+  model_path: "yolo11x-pose.pt"
+
+  # Model type: yolo, rtmpose, vitpose
+  model_type: "yolo"
+
+  # Keypoint confidence threshold
+  keypoint_conf_threshold: 0.3
+
+  # Bounding box padding ratio (0.0 = no padding)
+  bbox_padding: 0.0
+
+  # Computing device
+  device: "cuda"
+
+  # Batch size for pose inference
+  batch_size: 16
+
+# ===== Path Configuration =====
+# Environment variables allow overriding these at runtime:
+# - MMA_DATASET_ROOT: Dataset root directory
+# - MMA_OUTPUT_ROOT: Output results directory
+# - MMA_LOG_ROOT: Logging directory
+paths:
+  # Dataset directory (use ${VAR_NAME:default} format for env var substitution)
+  dataset_root: "${MMA_DATASET_ROOT:/workspace/MMA/dataset}"
+
+  # Output/results directory
+  output_root: "${MMA_OUTPUT_ROOT:/workspace/MMA/results}"
+
+  # Logging directory
+  log_root: "${MMA_LOG_ROOT:/workspace/MMA/log}"

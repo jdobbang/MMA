@@ -1,0 +1,36 @@
+# MMA Detection Configuration
+# Override detection model and parameters
+
+detection:
+  # YOLO model variants: yolo11n, yolo11s, yolo11m, yolo11l, yolo11x
+  model_path: "yolo11x.pt"
+
+  # Detection confidence threshold
+  conf_threshold: 0.1
+
+  # Detection classes (0 = person)
+  classes: [0]
+
+  # GPU device
+  device: "cuda"
+
+  # Batch size for inference
+  batch_size: 16
+
+  # Input image size
+  imgsz: 640
+
+# Alternative configurations
+# High-precision (slower, more accurate)
+# detection:
+#   model_path: "yolo11x.pt"
+#   conf_threshold: 0.2
+#   batch_size: 8
+#   imgsz: 1280
+
+# High-speed (faster, lower accuracy)
+# detection:
+#   model_path: "yolo11n.pt"
+#   conf_threshold: 0.05
+#   batch_size: 32
+#   imgsz: 640

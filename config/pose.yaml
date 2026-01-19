@@ -1,0 +1,36 @@
+# MMA Pose Estimation Configuration
+# Configure pose model and keypoint extraction parameters
+
+pose:
+  # Pose model path
+  model_path: "yolo11x-pose.pt"
+
+  # Model type: yolo, rtmpose, vitpose
+  model_type: "yolo"
+
+  # Keypoint confidence threshold
+  keypoint_conf_threshold: 0.3
+
+  # Bounding box padding
+  bbox_padding: 0.0
+
+  # GPU device
+  device: "cuda"
+
+  # Batch size for inference
+  batch_size: 16
+
+# Alternative configurations
+# RTMPose (more accurate, slower)
+# pose:
+#   model_path: "rtmpose-x-aic-coco"
+#   model_type: "rtmpose"
+#   keypoint_conf_threshold: 0.4
+#   batch_size: 8
+
+# ViTPose (transformer-based, high accuracy)
+# pose:
+#   model_path: "vitpose-base"
+#   model_type: "vitpose"
+#   keypoint_conf_threshold: 0.3
+#   batch_size: 4
